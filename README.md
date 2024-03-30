@@ -10,8 +10,8 @@ This Go script facilitates the extraction of URLs disallowed by robots.txt files
 3. Navigate to the directory containing the script.
 4. Run the script with the command:
 
-   \`\`\`bash
-   go run main.go
+   \`\`\`
+   go run main.go > domains-robot
    \`\`\`
 
 5. Input a list of website URLs, each on a separate line.
