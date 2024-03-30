@@ -38,7 +38,11 @@ func extractUrlsFromRobots(robotsUrl string, wg *sync.WaitGroup, urlsChan chan<-
 
     var urls []string
     for _, match := range matches {
-        urls = append(urls, robotsUrl+match[1])
+        // Remove "/robots.txt" from the URL
+        url := robotsUrl[:len(robotsUrl)-11] // Remove 10 caracteres da URL
+        // Concatenando com o diretório encontrado
+        url += match[1]
+        urls = append(urls, url)
     }
 
     urlsChan <- urls
@@ -89,4 +93,5 @@ func main() {
 
     fmt.Printf("Extracted URLs from robots.txt files have been saved to %s\n", outputFile)
 }
+
 
