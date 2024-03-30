@@ -14,8 +14,11 @@ This Go script facilitates the extraction of URLs disallowed by robots.txt files
    go run main.go > domains-robot
    \`\`\`
 
-5. Input a list of website URLs, each on a separate line.
-6. The script will process each URL, extract the disallowed URLs from the corresponding robots.txt file, and save them to an output file named \`urlsrobots\`.
+OR:
+cat subdomains-alive | robot > domains-robot
+
+6. Input a list of website URLs, each on a separate line.
+7. The script will process each URL, extract the disallowed URLs from the corresponding robots.txt file, and save them to an output file named \`urlsrobots\`.
 
 ## Features
 
