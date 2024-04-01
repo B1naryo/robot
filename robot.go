@@ -1,97 +1,136 @@
 package main
 
 import (
-    "bufio"
-    "fmt"
-    "io/ioutil"
-    "net/http"
-    "os"
-    "regexp"
-    "strings"
-    "sync"
+	"bufio"
+	"fmt"
+	"io/ioutil"
+	"net/http"
+	"net/url"
+	"os"
+	"path/filepath"
+	"regexp"
+	"time"
 )
 
-// Function to extract URLs from the robots.txt file
-func extractUrlsFromRobots(robotsUrl string, wg *sync.WaitGroup, urlsChan chan<- []string) {
-    defer wg.Done()
 
-    response, err := http.Get(robotsUrl)
-    if err != nil {
-        fmt.Fprintf(os.Stderr, "Error accessing robots.txt at %s: %v\n", robotsUrl, err)
-        return
-    }
-    defer response.Body.Close()
+func extractUrlsFromSitemap(sitemapContent string, baseUrl string) []string {
+	var urls []string
+	re := regexp.MustCompile(`<loc>(.*?)<\/loc>`)
+	matches := re.FindAllStringSubmatch(sitemapContent, -1)
+	for _, match := range matches {
+		urls = append(urls, match[1])
+	}
+	fmt.Printf("URLs extraídas do sitemap de %s.\n", baseUrl)
+	return urls
+}
 
-    if response.StatusCode != http.StatusOK {
-        fmt.Fprintf(os.Stderr, "Error accessing robots.txt at %s. Status code: %d\n", robotsUrl, response.StatusCode)
-        return
-    }
-
-    body, err := ioutil.ReadAll(response.Body)
-    if err != nil {
-        fmt.Fprintf(os.Stderr, "Error reading robots.txt content at %s: %v\n", robotsUrl, err)
-        return
-    }
-
-    pattern := regexp.MustCompile(`Disallow: (.*)`)
-    matches := pattern.FindAllStringSubmatch(string(body), -1)
-
-    var urls []string
-    for _, match := range matches {
-        // Remove "/robots.txt" from the URL
-        url := robotsUrl[:len(robotsUrl)-11] // Remove 10 caracteres da URL
-        // Concatenando com o diretório encontrado
-        url += match[1]
-        urls = append(urls, url)
-    }
-
-    urlsChan <- urls
+func extractUrlsFromRobots(robotsContent string, baseUrl string) []string {
+	var urls []string
+	re := regexp.MustCompile(`Disallow: (.*)`)
+	matches := re.FindAllStringSubmatch(robotsContent, -1)
+	for _, match := range matches {
+		urls = append(urls, baseUrl+match[1])
+	}
+	fmt.Printf("URLs extraídas do robots.txt de %s.\n", baseUrl)
+	return urls
 }
 
 func main() {
-    scanner := bufio.NewScanner(os.Stdin)
+	if len(os.Args) != 2 {
+		fmt.Println("Uso: go run Robot.go <arquivo_de_urls>")
+		os.Exit(1)
+	}
 
-    var wg sync.WaitGroup
-    urlsChan := make(chan []string)
+	fileName := os.Args[1]
 
-    go func() {
-        for scanner.Scan() {
-            url := scanner.Text()
-            if !strings.HasPrefix(url, "http://") && !strings.HasPrefix(url, "https://") {
-                url = "http://" + url
-            }
-            robotsUrl := strings.TrimSuffix(url, "/") + "/robots.txt"
-            wg.Add(1)
-            go extractUrlsFromRobots(robotsUrl, &wg, urlsChan)
-        }
-        wg.Wait()
-        close(urlsChan)
-    }()
+	file, err := os.Open(fileName)
+	if err != nil {
+		fmt.Printf("Erro ao abrir o arquivo: %s\n", err)
+		os.Exit(1)
+	}
+	defer file.Close()
 
-    var output strings.Builder
-    for urls := range urlsChan {
-        if len(urls) > 0 {
-            for _, url := range urls {
-                output.WriteString(url)
-                output.WriteString("\n")
-            }
-            output.WriteString("")
-        }
-    }
+	var extractedUrls []string
 
-    if err := scanner.Err(); err != nil {
-        fmt.Fprintf(os.Stderr, "Error reading standard input: %v\n", err)
-        os.Exit(1)
-    }
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		urlString := scanner.Text()
+		if urlString == "" {
+			continue
+		}
 
-    outputFile := "urlsrobots"
-    err := ioutil.WriteFile(outputFile, []byte(output.String()), 0644)
-    if err != nil {
-        fmt.Fprintf(os.Stderr, "Error saving extracted URLs from robots.txt to %s: %v\n", outputFile, err)
-        os.Exit(1)
-    }
+		baseUrl := "http://" + urlString
+		fmt.Printf("URL base: %s\n", baseUrl)
 
-    fmt.Printf("Extracted URLs from robots.txt files have been saved to %s\n", outputFile)
+		// Verificar se a URL é válida
+		_, err := url.Parse(baseUrl)
+		if err != nil {
+			fmt.Printf("URL inválida: %s\n", baseUrl)
+			continue
+		}
+
+		// Tentar acessar o site
+		client := http.Client{
+			Timeout: time.Second * 10, // Timeout de 10 segundos
+		}
+		resp, err := client.Head(baseUrl)
+		if err != nil {
+			fmt.Printf("Erro ao acessar %s: %s. Pulando para o próximo URL.\n", baseUrl, err)
+			continue
+		}
+		resp.Body.Close()
+
+		// Extrair URLs do sitemap
+		sitemapUrl := baseUrl + "/sitemap.xml"
+		fmt.Printf("URL do sitemap: %s\n", sitemapUrl)
+		resp, err = client.Get(sitemapUrl)
+		if err == nil && resp.StatusCode == http.StatusOK {
+			sitemapContent, err := ioutil.ReadAll(resp.Body)
+			resp.Body.Close()
+			if err == nil {
+				extractedUrls = append(extractedUrls, extractUrlsFromSitemap(string(sitemapContent), baseUrl)...)
+			} else {
+				fmt.Printf("Erro ao ler o conteúdo do sitemap de %s: %s\n", baseUrl, err)
+			}
+		} else {
+			fmt.Printf("Erro ao acessar o sitemap de %s: %s\n", baseUrl, err)
+		}
+
+		// Extrair URLs do robots.txt
+		robotsUrl := baseUrl + "/robots.txt"
+		fmt.Printf("URL do robots.txt: %s\n", robotsUrl)
+		resp, err = client.Get(robotsUrl)
+		if err == nil && resp.StatusCode == http.StatusOK {
+			robotsContent, err := ioutil.ReadAll(resp.Body)
+			resp.Body.Close()
+			if err == nil {
+				extractedUrls = append(extractedUrls, extractUrlsFromRobots(string(robotsContent), baseUrl)...)
+			} else {
+				fmt.Printf("Erro ao ler o conteúdo do robots.txt de %s: %s\n", baseUrl, err)
+			}
+		} else {
+			fmt.Printf("Erro ao acessar o robots.txt de %s: %s\n", baseUrl, err)
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		fmt.Printf("Erro ao ler o arquivo: %s\n", err)
+	}
+
+	outputFilePath := filepath.Join(".", "urls.txt")
+	outputFile, err := os.Create(outputFilePath)
+	if err != nil {
+		fmt.Printf("Erro ao criar o arquivo urls.txt: %s\n", err)
+		os.Exit(1)
+	}
+	defer outputFile.Close()
+
+	for _, u := range extractedUrls {
+		outputFile.WriteString(u + "\n")
+	}
+
+	fmt.Println("Diretórios extraídos de robots.txt e sitemap.xml e salvos em urls.txt.")
 }
+
 
 
