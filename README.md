@@ -10,7 +10,8 @@ Saves extracted URLs to a specified output file for analysis.
 Usage:
 
 Clone the repository.
-Run the script with the following command: go run Robot.go urls.txt
+Run the script with the following command: 
+cat domains | robot urls
 Provide the input file containing domain names.
 The extracted URLs will be saved to the urls.txt file in the current directory.
 Requirements:
