@@ -11,99 +11,99 @@ import (
 )
 
 func main() {
-	// Abrir o arquivo com as URLs
+	// Open the file with URLs
 	file, err := os.Open("x.txt")
 	if err != nil {
-		fmt.Println("Erro ao abrir o arquivo:", err)
+		fmt.Println("Error opening the file:", err)
 		return
 	}
 	defer file.Close()
 
-	// Criar um scanner para ler o arquivo linha por linha
+	// Create a scanner to read the file line by line
 	scanner := bufio.NewScanner(file)
 
-	// Abrir arquivo para escrita
+	// Open a file for writing
 	outputFile, err := os.Create("urls_xml_inputs.txt")
 	if err != nil {
-		fmt.Println("Erro ao criar arquivo de saída:", err)
+		fmt.Println("Error creating output file:", err)
 		return
 	}
 	defer outputFile.Close()
 
-	// Criar um writer para escrever no arquivo de saída
+	// Create a writer to write to the output file
 	writer := bufio.NewWriter(outputFile)
 
-	// Criar um slice para armazenar as URLs únicas
+	// Create a slice to store unique URLs
 	var uniqueURLs []string
 
-	// Criar um WaitGroup para esperar que todas as goroutines terminem
+	// Create a WaitGroup to wait for all goroutines to finish
 	var wg sync.WaitGroup
 
-	// Iterar sobre cada linha do arquivo
+	// Iterate over each line of the file
 	for scanner.Scan() {
 		url := scanner.Text()
 
-		// Verificar se a URL já está na lista de URLs únicas
+		// Check if the URL is already in the list of unique URLs
 		if contains(uniqueURLs, url) {
 			continue
 		}
 
-		// Adicionar a URL à lista de URLs únicas
+		// Add the URL to the list of unique URLs
 		uniqueURLs = append(uniqueURLs, url)
 
-		// Incrementar o contador do WaitGroup para cada goroutine
+		// Increment the WaitGroup counter for each goroutine
 		wg.Add(1)
 
-		// Chamar a função go para executar a verificação de URL em uma goroutine separada
+		// Call the go function to perform URL checking in a separate goroutine
 		go func(url string) {
 			defer wg.Done()
-			if hasInputs(url) {
-				// Se a URL contiver inputs, salvá-la no arquivo de saída
+			if hasInputs(url) || strings.Contains(url, "?") {
+				// If the URL contains inputs or parameters, save it to the output file
 				_, err := writer.WriteString(url + "\n")
 				if err != nil {
-					fmt.Println("Erro ao escrever no arquivo de saída:", err)
+					fmt.Println("Error writing to output file:", err)
 					return
 				}
 			}
 		}(url)
 	}
 
-	// Verificar se houve algum erro durante a leitura do arquivo
+	// Check if there was any error during file reading
 	if err := scanner.Err(); err != nil {
-		fmt.Println("Erro durante a leitura do arquivo:", err)
+		fmt.Println("Error during file reading:", err)
 		return
 	}
 
-	// Aguardar a conclusão de todas as goroutines antes de prosseguir
+	// Wait for all goroutines to finish before proceeding
 	wg.Wait()
 
-	// Flush para garantir que todos os dados sejam escritos no arquivo
+	// Flush to ensure all data is written to the file
 	writer.Flush()
 
-	// Remover URLs duplicadas do arquivo de saída
+	// Remove duplicate URLs from the output file
 	removeDuplicates("urls_xml_inputs.txt")
 
-	fmt.Println("URLs com inputs encontradas foram salvas no arquivo urls_com_inputs.txt.")
+	fmt.Println("URLs with inputs found have been saved in the urls_with_inputs.txt file.")
 }
 
-// Função para verificar se uma URL contém inputs
+// Function to check if a URL contains inputs
 func hasInputs(url string) bool {
-	// Realizar uma requisição GET para a URL
+	// Perform a GET request to the URL
 	resp, err := http.Get(url)
 	if err != nil {
-		fmt.Println("Erro ao acessar a URL:", err)
+		fmt.Println("Error accessing URL:", err)
 		return false
 	}
 	defer resp.Body.Close()
 
-	// Ler o corpo da resposta
+	// Read the response body
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		fmt.Println("Erro ao ler o corpo da resposta:", err)
+		fmt.Println("Error reading response body:", err)
 		return false
 	}
 
-	// Verificar se o corpo da resposta contém a palavra "input"
+	// Check if the response body contains the word "input"
 	if strings.Contains(strings.ToLower(string(body)), "input") {
 		return true
 	}
@@ -111,7 +111,7 @@ func hasInputs(url string) bool {
 	return false
 }
 
-// Função para verificar se um slice contém um determinado elemento
+// Function to check if a slice contains a certain element
 func contains(slice []string, element string) bool {
 	for _, item := range slice {
 		if item == element {
@@ -121,52 +121,51 @@ func contains(slice []string, element string) bool {
 	return false
 }
 
-// Função para remover URLs duplicadas de um arquivo
+// Function to remove duplicate URLs from a file
 func removeDuplicates(filename string) {
-	// Abrir o arquivo para leitura
+	// Open the file for reading
 	file, err := os.Open(filename)
 	if err != nil {
-		fmt.Println("Erro ao abrir o arquivo:", err)
+		fmt.Println("Error opening the file:", err)
 		return
 	}
 	defer file.Close()
 
-	// Criar um scanner para ler o arquivo linha por linha
+	// Create a scanner to read the file line by line
 	scanner := bufio.NewScanner(file)
 
-	// Criar um mapa para armazenar as URLs únicas
+	// Create a map to store unique URLs
 	uniqueURLs := make(map[string]struct{})
 
-	// Ler cada linha do arquivo
+	// Read each line of the file
 	for scanner.Scan() {
 		url := scanner.Text()
-		// Adicionar a URL ao mapa de URLs únicas
+		// Add the URL to the map of unique URLs
 		uniqueURLs[url] = struct{}{}
 	}
 
-	// Verificar se houve algum erro durante a leitura do arquivo
+	// Check if there was any error during file reading
 	if err := scanner.Err(); err != nil {
-		fmt.Println("Erro durante a leitura do arquivo:", err)
+		fmt.Println("Error during file reading:", err)
 		return
 	}
 
-	// Abrir o arquivo para escrita
+	// Open the file for writing
 	outputFile, err := os.Create(filename)
 	if err != nil {
-		fmt.Println("Erro ao criar arquivo de saída:", err)
+		fmt.Println("Error creating output file:", err)
 		return
 	}
 	defer outputFile.Close()
 
-	// Escrever as URLs únicas no arquivo de saída
+	// Write the unique URLs to the output file
 	writer := bufio.NewWriter(outputFile)
 	for url := range uniqueURLs {
 		_, err := writer.WriteString(url + "\n")
 		if err != nil {
-			fmt.Println("Erro ao escrever no arquivo de saída:", err)
+			fmt.Println("Error writing to output file:", err)
 			return
 		}
 	}
 	writer.Flush()
 }
-
