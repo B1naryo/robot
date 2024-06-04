@@ -9,9 +9,9 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strings"
 	"time"
 )
-
 
 func extractUrlsFromSitemap(sitemapContent string, baseUrl string) []string {
 	var urls []string
@@ -33,6 +33,13 @@ func extractUrlsFromRobots(robotsContent string, baseUrl string) []string {
 	}
 	fmt.Printf("URLs extraídas do robots.txt de %s.\n", baseUrl)
 	return urls
+}
+
+func ensureUrlScheme(urlString string) string {
+	if !strings.HasPrefix(urlString, "http://") && !strings.HasPrefix(urlString, "https://") {
+		urlString = "http://" + urlString
+	}
+	return urlString
 }
 
 func main() {
@@ -59,12 +66,12 @@ func main() {
 			continue
 		}
 
-		baseUrl := "http://" + urlString
+		baseUrl := ensureUrlScheme(urlString)
 		fmt.Printf("URL base: %s\n", baseUrl)
 
 		// Verificar se a URL é válida
-		_, err := url.Parse(baseUrl)
-		if err != nil {
+		parsedUrl, err := url.Parse(baseUrl)
+		if err != nil || parsedUrl.Scheme == "" || parsedUrl.Host == "" {
 			fmt.Printf("URL inválida: %s\n", baseUrl)
 			continue
 		}
@@ -131,6 +138,4 @@ func main() {
 
 	fmt.Println("Diretórios extraídos de robots.txt e sitemap.xml e salvos em urls.txt.")
 }
-
-
 
